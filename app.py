@@ -147,7 +147,6 @@ if selected_part:
 # -----------------------------------------------------------------------------
 st.title("📊 GS25 현장 맞춤형 코칭 리포트")
 
-# ✨ [업데이트] 3가지 분석 기간 추출 및 분할 표시 로직
 if not df_all_daily.empty:
     st.markdown("##### 🗓️ 데이터 분석 기준 기간")
     col_p1, col_p2, col_p3 = st.columns(3)
@@ -232,6 +231,7 @@ else:
 
         st.divider()
 
+        # ✨ [업데이트] 요일 선택형 피크타임 차트
         st.subheader("3. ⏰ 시간대별 집중도 추이 (피크 타임)")
         
         peak_texts = []
@@ -241,16 +241,34 @@ else:
                 peak_hr = day_data.loc[day_data['판매량'].idxmax()]['결제시간대']
                 peak_texts.append(f"**{day}**: {peak_hr}시")
         
-        st.info("📌 **매출 최고점 시간대:** " + " | ".join(peak_texts))
+        st.info("📌 **전체 요일별 최고점 시간대 요약:** " + " | ".join(peak_texts))
+        
+        # 라디오 버튼으로 요일 선택 기능 추가
+        selected_day_chart = st.radio("그래프 조회 조건 선택", ["전체"] + day_order, horizontal=True)
         
         df_line = df_store_hour.groupby(['요일', '결제시간대'])['판매량'].mean().reset_index()
         df_line['요일'] = pd.Categorical(df_line['요일'], categories=day_order, ordered=True)
+        
+        # 선택된 요일만 필터링
+        if selected_day_chart != "전체":
+            df_line = df_line[df_line['요일'] == selected_day_chart]
+            
         df_line = df_line.sort_values(['요일', '결제시간대'])
 
-        fig_line = px.line(
-            df_line, x="결제시간대", y="판매량", color="요일", 
-            markers=True, labels={"판매량": "평균 판매건수"}
-        )
+        # 차트 그리기 (전체일 때는 선만, 특정 요일일 때는 밑색 채우기)
+        if selected_day_chart == "전체":
+            fig_line = px.line(
+                df_line, x="결제시간대", y="판매량", color="요일", 
+                markers=True, labels={"판매량": "평균 판매건수"}
+            )
+        else:
+            fig_line = px.line(
+                df_line, x="결제시간대", y="판매량", 
+                markers=True, labels={"판매량": "평균 판매건수"}
+            )
+            # 단일 요일 선택 시 차트를 돋보이게 영역 색칠
+            fig_line.update_traces(fill='tozeroy', line_color='#0078D7', fillcolor='rgba(0, 120, 215, 0.2)')
+
         fig_line.update_xaxes(tickmode='linear', tick0=0, dtick=2) 
         fig_line.update_layout(template='plotly_white', margin=dict(l=0, r=0, t=20, b=0), plot_bgcolor='rgba(0,0,0,0)', legend_title_text='')
         st.plotly_chart(fig_line, use_container_width=True)
