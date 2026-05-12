@@ -71,7 +71,6 @@ def load_advanced_data():
     for store, meta in store_meta.items():
         periods = [("당월", 0), ("전월", 30), ("전년동월", 365)]
         for period_name, days_offset in periods:
-            # 시뮬레이션: 당월 데이터는 최근 14일(약 2주)치만 누적되었다고 가정
             days_to_generate = 14 if period_name == "당월" else 30 
             
             for i in range(days_to_generate):
@@ -148,11 +147,22 @@ if selected_part:
 # -----------------------------------------------------------------------------
 st.title("📊 GS25 현장 맞춤형 코칭 리포트")
 
-# ✨ [업데이트] 최상단 당월 누적 기간 자동 표시 로직
-if not df_daily.empty:
-    min_date = df_daily['일자'].min()
-    max_date = df_daily['일자'].max()
-    st.info(f"**🗓️ 현재 분석 기간 (당월 누적):** {min_date} ~ {max_date}")
+# ✨ [업데이트] 3가지 분석 기간 추출 및 분할 표시 로직
+if not df_all_daily.empty:
+    st.markdown("##### 🗓️ 데이터 분석 기준 기간")
+    col_p1, col_p2, col_p3 = st.columns(3)
+    
+    def get_period_str(df, period_name):
+        temp = df[df['기간'] == period_name]
+        if not temp.empty:
+            return f"{temp['일자'].min()} ~ {temp['일자'].max()}"
+        return "데이터 없음"
+
+    col_p1.info(f"**🟦 당월 누적 (1일~D-1):**\n\n{get_period_str(df_all_daily, '당월')}")
+    col_p2.info(f"**⬜ 전월 전체:**\n\n{get_period_str(df_all_daily, '전월')}")
+    col_p3.info(f"**⬜ 전년 동월 전체:**\n\n{get_period_str(df_all_daily, '전년동월')}")
+
+st.markdown("---")
 
 if not selected_part or not selected_store:
     st.warning("👈 사이드바에서 담당 파트명과 점포를 먼저 선택해 주세요.")
@@ -183,7 +193,7 @@ else:
     # TAB 1: 발주 코칭 
     # -------------------------------------------------------
     with tab1:
-        st.subheader("1. 📉 과거 FF 매출 흐름 (누적 기준)")
+        st.subheader("1. 📉 과거 FF 매출 흐름 (해당 기간 기준)")
         curr_rev = df_store_all[df_store_all['기간'] == '당월']['일매출'].sum()
         mom_rev = df_store_all[df_store_all['기간'] == '전월']['일매출'].sum()
         yoy_rev = df_store_all[df_store_all['기간'] == '전년동월']['일매출'].sum()
