@@ -5,53 +5,30 @@ import plotly.express as px
 from datetime import datetime, timedelta
 
 # -----------------------------------------------------------------------------
-# 1. 페이지 기본 설정 및 디자인(CSS) 주입
+# 1. 페이지 기본 설정 및 디자인
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="GS25 FF 코칭 PRO MAX", page_icon="🏪", layout="wide")
 
-# ✨ 디자인 업그레이드를 위한 커스텀 CSS
 st.markdown("""
 <style>
-    /* 전체 폰트 및 텍스트 색상 부드럽게 조정 */
-    html, body, [class*="css"] {
-        font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-    }
-    
-    /* 주요 지표(Metric) 위젯을 세련된 카드 형태로 변경 */
+    html, body, [class*="css"] { font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif; }
     div[data-testid="metric-container"] {
-        background-color: #ffffff;
-        border: 1px solid #e6e9ef;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.05);
+        background-color: #ffffff; border: 1px solid #e6e9ef;
+        padding: 20px; border-radius: 15px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.05);
         transition: transform 0.2s;
     }
-    div[data-testid="metric-container"]:hover {
-        transform: translateY(-2px); /* 터치/마우스 오버 시 살짝 위로 뜨는 효과 */
-    }
-    
-    /* 탭(Tab) 디자인 깔끔하게 변경 */
-    button[data-baseweb="tab"] {
-        font-weight: 600;
-        font-size: 16px !important;
-    }
-    
-    /* 데이터프레임(표) 헤더 강조 */
-    thead tr th {
-        background-color: #f1f3f5 !important;
-        color: #212529 !important;
-        font-weight: bold !important;
-    }
+    div[data-testid="metric-container"]:hover { transform: translateY(-2px); }
+    button[data-baseweb="tab"] { font-weight: 600; font-size: 16px !important; }
+    thead tr th { background-color: #f1f3f5 !important; color: #212529 !important; font-weight: bold !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# 비밀번호 로직
 def check_password():
     if "password_correct" not in st.session_state:
         st.session_state["password_correct"] = False
     if not st.session_state["password_correct"]:
         st.title("🔒 GS25 매출 코칭 대시보드")
-        pwd = st.text_input("비밀번호를 입력하세요 (GS25)", type="password")
+        pwd = st.text_input("비밀번호 (GS25)", type="password")
         if st.button("로그인"):
             if pwd == "GS25":
                 st.session_state["password_correct"] = True
@@ -70,12 +47,12 @@ if not check_password():
 @st.cache_data
 def load_advanced_data():
     store_meta = {
-        "상무본점": {"OFC": "김광주", "Area": "유흥가", "Power": 1.2},
-        "충장로중앙점": {"OFC": "김광주", "Area": "상업지", "Power": 1.5},
-        "수완지구점": {"OFC": "김광주", "Area": "주택가", "Power": 0.8},
-        "첨단산단점": {"OFC": "이전라", "Area": "오피스", "Power": 1.3},
-        "금남로4가점": {"OFC": "이전라", "Area": "오피스", "Power": 0.9},
-        "광천터미널점": {"OFC": "이전라", "Area": "상업지", "Power": 1.8}
+        "상무본점": {"파트명": "김광주", "점포유형": "유흥가", "Power": 1.2},
+        "충장로중앙점": {"파트명": "김광주", "점포유형": "상업지", "Power": 1.5},
+        "수완지구점": {"파트명": "김광주", "점포유형": "주택가", "Power": 0.8},
+        "첨단산단점": {"파트명": "이전라", "점포유형": "오피스", "Power": 1.3},
+        "금남로4가점": {"파트명": "이전라", "점포유형": "오피스", "Power": 0.9},
+        "광천터미널점": {"파트명": "이전라", "점포유형": "상업지", "Power": 1.8}
     }
     categories = ["도시락", "김밥", "주먹밥", "햄버거/샌드위치", "FF간편식"]
     products = {
@@ -94,7 +71,10 @@ def load_advanced_data():
     for store, meta in store_meta.items():
         periods = [("당월", 0), ("전월", 30), ("전년동월", 365)]
         for period_name, days_offset in periods:
-            for i in range(30):
+            # 시뮬레이션: 당월 데이터는 최근 14일(약 2주)치만 누적되었다고 가정
+            days_to_generate = 14 if period_name == "당월" else 30 
+            
+            for i in range(days_to_generate):
                 d = today - timedelta(days=i + days_offset)
                 day_str = days_kr[d.weekday()]
                 
@@ -104,63 +84,63 @@ def load_advanced_data():
                         if period_name == "전월": base_inbound = int(base_inbound * 0.95)
                         if period_name == "전년동월": base_inbound = int(base_inbound * 0.85)
 
-                        if meta["Area"] == "오피스" and d.weekday() >= 5:
+                        if meta["점포유형"] == "오피스" and d.weekday() >= 5:
                             base_inbound = int(base_inbound * 0.3)
                             sales_qty = int(base_inbound * np.random.uniform(0.5, 0.9))
                         else:
                             sales_qty = int(base_inbound * np.random.uniform(0.7, 1.0))
                             
-                        revenue = sales_qty * np.random.randint(2000, 5000)
+                        daily_rev = sales_qty * np.random.randint(2000, 5000)
                         
                         daily_data.append({
-                            "Date": d.strftime("%Y-%m-%d"),
-                            "Period": period_name,
-                            "DayOfWeek": day_str,
-                            "Store": store,
-                            "Area_Type": meta["Area"],
-                            "Category": cat,
-                            "Product": prod,
-                            "Inbound": base_inbound,
-                            "Sales_Qty": sales_qty,
-                            "Revenue": revenue
+                            "일자": d.strftime("%Y-%m-%d"),
+                            "기간": period_name,
+                            "요일": day_str,
+                            "점포명": store,
+                            "점포유형": meta["점포유형"],
+                            "중분류": cat,
+                            "상품명": prod,
+                            "입고수량": base_inbound,
+                            "판매수량": sales_qty,
+                            "일매출": daily_rev
                         })
 
         for day_idx, day_str in enumerate(days_kr):
             for hour in range(24):
                 traffic = np.random.randint(1, 10)
                 is_weekend = day_idx >= 5
-                if meta["Area"] == "오피스" and not is_weekend and (11 <= hour <= 13):
+                if meta["점포유형"] == "오피스" and not is_weekend and (11 <= hour <= 13):
                     traffic += np.random.randint(30, 50)
-                elif meta["Area"] == "주택가" and is_weekend and (18 <= hour <= 22):
+                elif meta["점포유형"] == "주택가" and is_weekend and (18 <= hour <= 22):
                     traffic += np.random.randint(30, 60)
-                elif meta["Area"] == "유흥가" and (20 <= hour <= 23 or 0 <= hour <= 2):
+                elif meta["점포유형"] == "유흥가" and (20 <= hour <= 23 or 0 <= hour <= 2):
                     traffic += np.random.randint(40, 70)
                     
                 hourly_data.append({
-                    "Store": store,
-                    "DayOfWeek": day_str,
-                    "Hour": hour,
-                    "Traffic_Sales": traffic
+                    "점포명": store,
+                    "요일": day_str,
+                    "결제시간대": hour,
+                    "판매량": traffic
                 })
 
     return pd.DataFrame(daily_data), pd.DataFrame(hourly_data), store_meta, categories
 
 df_all_daily, df_hourly, store_meta, cat_list = load_advanced_data()
-df_daily = df_all_daily[df_all_daily['Period'] == '당월'] 
+df_daily = df_all_daily[df_all_daily['기간'] == '당월'] 
 
 # -----------------------------------------------------------------------------
-# 3. 사이드바 
+# 3. 사이드바
 # -----------------------------------------------------------------------------
 if st.sidebar.button("🔓 로그아웃"):
     st.session_state["password_correct"] = False
     st.rerun()
 
 st.sidebar.header("🔍 분석 조건")
-ofc_list = list(set([meta["OFC"] for meta in store_meta.values()]))
-selected_ofc = st.sidebar.selectbox("담당 OFC", ofc_list, index=None, placeholder="터치하여 선택/검색")
+part_list = list(set([meta["파트명"] for meta in store_meta.values()]))
+selected_part = st.sidebar.selectbox("담당 파트명", part_list, index=None, placeholder="터치하여 선택/검색")
 
-if selected_ofc:
-    store_list = [store for store, meta in store_meta.items() if meta["OFC"] == selected_ofc]
+if selected_part:
+    store_list = [store for store, meta in store_meta.items() if meta["파트명"] == selected_part]
     selected_store = st.sidebar.selectbox("점포 선택", store_list, index=None, placeholder="점포명 검색/선택")
 
 # -----------------------------------------------------------------------------
@@ -168,20 +148,27 @@ if selected_ofc:
 # -----------------------------------------------------------------------------
 st.title("📊 GS25 현장 맞춤형 코칭 리포트")
 
-if not selected_ofc or not selected_store:
-    st.info("👈 사이드바에서 담당 OFC와 점포를 먼저 선택해 주세요.")
-else:
-    current_area = store_meta[selected_store]["Area"]
-    
-    df_store = df_daily[df_daily['Store'] == selected_store]
-    df_store_hour = df_hourly[df_hourly['Store'] == selected_store]
-    df_area = df_daily[df_daily['Area_Type'] == current_area]
+# ✨ [업데이트] 최상단 당월 누적 기간 자동 표시 로직
+if not df_daily.empty:
+    min_date = df_daily['일자'].min()
+    max_date = df_daily['일자'].max()
+    st.info(f"**🗓️ 현재 분석 기간 (당월 누적):** {min_date} ~ {max_date}")
 
-    st.markdown(f"### 📍 **{selected_store}** (상권: {current_area})")
+if not selected_part or not selected_store:
+    st.warning("👈 사이드바에서 담당 파트명과 점포를 먼저 선택해 주세요.")
+else:
+    current_area = store_meta[selected_store]["점포유형"]
     
-    peak_hour_data = df_store_hour.groupby('Hour')['Traffic_Sales'].sum().reset_index()
-    best_hour = peak_hour_data.loc[peak_hour_data['Traffic_Sales'].idxmax()]['Hour']
-    best_cat = df_store.groupby('Category')['Sales_Qty'].sum().idxmax()
+    df_store_all = df_all_daily[df_all_daily['점포명'] == selected_store]
+    df_store = df_daily[df_daily['점포명'] == selected_store] 
+    df_store_hour = df_hourly[df_hourly['점포명'] == selected_store]
+    df_area = df_daily[df_daily['점포유형'] == current_area]
+
+    st.markdown(f"### 📍 **{selected_store}** (유형: {current_area})")
+    
+    peak_hour_data = df_store_hour.groupby('결제시간대')['판매량'].sum().reset_index()
+    best_hour = peak_hour_data.loc[peak_hour_data['판매량'].idxmax()]['결제시간대']
+    best_cat = df_store.groupby('중분류')['판매수량'].sum().idxmax()
     
     st.success(f"🌟 **오늘의 핵심 액션 플랜**\n\n"
                f"우리 점포 매출의 일등 공신은 **[{best_cat}]** 카테고리입니다! "
@@ -190,36 +177,44 @@ else:
     
     st.markdown("---")
 
-    tab1, tab2, tab3 = st.tabs(["💡 발주/진열 코칭", "🏆 상권 베스트 점검", "📈 매출 및 판매율 요약"])
+    tab1, tab2, tab3 = st.tabs(["💡 발주/진열 코칭", "🏆 유사유형 베스트 점검", "📈 매출 및 판매율 요약"])
 
     # -------------------------------------------------------
-    # TAB 1: 발주 코칭
+    # TAB 1: 발주 코칭 
     # -------------------------------------------------------
     with tab1:
-        st.subheader("1. 📉 과거 FF 매출 흐름 (최근 30일)")
-        df_store_all = df_all_daily[df_all_daily['Store'] == selected_store]
-        curr_rev = df_store_all[df_store_all['Period'] == '당월']['Revenue'].sum()
-        mom_rev = df_store_all[df_store_all['Period'] == '전월']['Revenue'].sum()
-        yoy_rev = df_store_all[df_store_all['Period'] == '전년동월']['Revenue'].sum()
+        st.subheader("1. 📉 과거 FF 매출 흐름 (누적 기준)")
+        curr_rev = df_store_all[df_store_all['기간'] == '당월']['일매출'].sum()
+        mom_rev = df_store_all[df_store_all['기간'] == '전월']['일매출'].sum()
+        yoy_rev = df_store_all[df_store_all['기간'] == '전년동월']['일매출'].sum()
         
         col1, col2, col3 = st.columns(3)
-        col1.metric("최근 30일 매출액", f"{curr_rev:,.0f}원")
-        col2.metric("전월 동기 대비", f"{mom_rev:,.0f}원", f"{(curr_rev - mom_rev) / mom_rev * 100:.1f}%" if mom_rev else "0%")
-        col3.metric("작년 동월 대비", f"{yoy_rev:,.0f}원", f"{(curr_rev - yoy_rev) / yoy_rev * 100:.1f}%" if yoy_rev else "0%")
+        col1.metric("당월 누적 일매출 합계", f"{curr_rev:,.0f}원")
+        col2.metric("전월 전체", f"{mom_rev:,.0f}원")
+        col3.metric("작년 동월 전체", f"{yoy_rev:,.0f}원")
 
         st.divider()
 
-        st.subheader("2. 📅 직관적 요일별 맞춤 발주")
+        st.subheader("2. 📅 데이터 기반 요일별 맞춤 발주")
+        st.markdown("> **[당월 누적 60% + 전월 30% + 전년동월 10%]** 비중으로 계산된 정밀한 예상치입니다.")
+        
         day_order = ["월", "화", "수", "목", "금", "토", "일"]
         pivot_df = pd.DataFrame(index=cat_list, columns=day_order)
         
         for cat in cat_list:
             for day in day_order:
-                subset = df_store[(df_store['Category'] == cat) & (df_store['DayOfWeek'] == day)]
-                if not subset.empty:
-                    avg_sales = int(subset['Sales_Qty'].mean())
-                    rec_order = int(avg_sales * 1.15)
-                    pivot_df.at[cat, day] = f"판 {avg_sales} / 발 {rec_order}"
+                curr_sales = df_store_all[(df_store_all['중분류'] == cat) & (df_store_all['요일'] == day) & (df_store_all['기간'] == '당월')]['판매수량'].mean()
+                mom_sales = df_store_all[(df_store_all['중분류'] == cat) & (df_store_all['요일'] == day) & (df_store_all['기간'] == '전월')]['판매수량'].mean()
+                yoy_sales = df_store_all[(df_store_all['중분류'] == cat) & (df_store_all['요일'] == day) & (df_store_all['기간'] == '전년동월')]['판매수량'].mean()
+                
+                curr_sales = curr_sales if pd.notna(curr_sales) else 0
+                mom_sales = mom_sales if pd.notna(mom_sales) else curr_sales
+                yoy_sales = yoy_sales if pd.notna(yoy_sales) else curr_sales
+                
+                if curr_sales > 0:
+                    exp_sales = (curr_sales * 0.6) + (mom_sales * 0.3) + (yoy_sales * 0.1)
+                    rec_order = int(exp_sales * 1.15) 
+                    pivot_df.at[cat, day] = f"예상 {int(exp_sales)} / 권장 {rec_order}"
                 else:
                     pivot_df.at[cat, day] = "-"
                     
@@ -227,50 +222,53 @@ else:
 
         st.divider()
 
-        st.subheader("3. ⏰ 요일별 진열 마지노선 (피크 타임)")
+        st.subheader("3. ⏰ 시간대별 집중도 추이 (피크 타임)")
+        
         peak_texts = []
         for day in day_order:
-            day_data = df_store_hour[df_store_hour['DayOfWeek'] == day]
+            day_data = df_store_hour[df_store_hour['요일'] == day]
             if not day_data.empty:
-                peak_hr = day_data.loc[day_data['Traffic_Sales'].idxmax()]['Hour']
+                peak_hr = day_data.loc[day_data['판매량'].idxmax()]['결제시간대']
                 peak_texts.append(f"**{day}**: {peak_hr}시")
         
-        st.info("📌 **매출 집중 시간대:** " + " | ".join(peak_texts))
+        st.info("📌 **매출 최고점 시간대:** " + " | ".join(peak_texts))
         
-        df_store_hour['DayOfWeek'] = pd.Categorical(df_store_hour['DayOfWeek'], categories=day_order, ordered=True)
-        fig_heat = px.density_heatmap(
-            df_store_hour, x="DayOfWeek", y="Hour", z="Traffic_Sales", 
-            histfunc="sum", color_continuous_scale="Blues", labels={"Traffic_Sales":"매출"}
+        df_line = df_store_hour.groupby(['요일', '결제시간대'])['판매량'].mean().reset_index()
+        df_line['요일'] = pd.Categorical(df_line['요일'], categories=day_order, ordered=True)
+        df_line = df_line.sort_values(['요일', '결제시간대'])
+
+        fig_line = px.line(
+            df_line, x="결제시간대", y="판매량", color="요일", 
+            markers=True, labels={"판매량": "평균 판매건수"}
         )
-        fig_heat.update_yaxes(autorange="reversed", tickmode='linear', tick0=0, dtick=2)
-        # ✨ 테마 적용 및 모바일 맞춤 여백
-        fig_heat.update_layout(template='plotly_white', margin=dict(l=0, r=0, t=30, b=0), plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig_heat, use_container_width=True)
+        fig_line.update_xaxes(tickmode='linear', tick0=0, dtick=2) 
+        fig_line.update_layout(template='plotly_white', margin=dict(l=0, r=0, t=20, b=0), plot_bgcolor='rgba(0,0,0,0)', legend_title_text='')
+        st.plotly_chart(fig_line, use_container_width=True)
 
     # -------------------------------------------------------
     # TAB 2: 베스트 상품
     # -------------------------------------------------------
     with tab2:
-        st.subheader(f"[{current_area}] 상권 베스트 상품 크로스체크")
+        st.subheader(f"[{current_area}] 유형 베스트 상품 크로스체크")
         best_items = []
         for cat in cat_list:
-            cat_df = df_area[df_area['Category'] == cat]
+            cat_df = df_area[df_area['중분류'] == cat]
             if not cat_df.empty:
-                top_item = cat_df.groupby('Product')['Sales_Qty'].sum().reset_index().sort_values(by='Sales_Qty', ascending=False).iloc[0]
-                item_name = top_item['Product']
-                area_sales = top_item['Sales_Qty']
+                top_item = cat_df.groupby('상품명')['판매수량'].sum().reset_index().sort_values(by='판매수량', ascending=False).iloc[0]
+                item_name = top_item['상품명']
+                area_sales = top_item['판매수량']
                 
-                my_item_df = df_store[df_store['Product'] == item_name]
+                my_item_df = df_store[df_store['상품명'] == item_name]
                 if not my_item_df.empty:
-                    my_inbound = int(my_item_df['Inbound'].sum())
-                    my_sales = int(my_item_df['Sales_Qty'].sum())
+                    my_inbound = int(my_item_df['입고수량'].sum())
+                    my_sales = int(my_item_df['판매수량'].sum())
                 else:
                     my_inbound = 0
                     my_sales = 0
                     
                 best_items.append({
-                    "분류": cat, "상품명": item_name, "상권 판매": area_sales,
-                    "우리점포 입고": my_inbound, "우리점포 판매": my_sales,
+                    "중분류": cat, "상품명": item_name, "동일유형 누적판매": area_sales,
+                    "우리점포 누적입고": my_inbound, "우리점포 누적판매": my_sales,
                     "상태": "🟢취급중" if my_inbound > 0 else "🔴미취급"
                 })
                 
@@ -278,18 +276,17 @@ else:
         st.dataframe(best_item_df, use_container_width=True, hide_index=True)
 
     # -------------------------------------------------------
-    # TAB 3: 요약 (차트 디자인 업그레이드)
+    # TAB 3: 요약 
     # -------------------------------------------------------
     with tab3:
-        st.subheader("1. 최근 30일 FF 일매출 추이")
-        daily_trend = df_store.groupby('Date')['Revenue'].sum().reset_index().sort_values(by='Date')
-        avg_daily = daily_trend['Revenue'].mean()
-        st.metric("일평균 FF 매출", f"{avg_daily:,.0f}원")
+        st.subheader("1. 당월 누적 FF 일매출 추이")
+        daily_trend = df_store.groupby('일자')['일매출'].sum().reset_index().sort_values(by='일자')
+        avg_daily = daily_trend['일매출'].mean()
+        st.metric("당월 일평균 FF 일매출", f"{avg_daily:,.0f}원")
         
-        # ✨ Bar 차트에 둥근 테두리와 브랜드 컬러 적용
         fig_bar = px.bar(
-            daily_trend, x="Date", y="Revenue", 
-            text_auto='.2s', labels={"Revenue": "매출액 (원)", "Date": "날짜"}
+            daily_trend, x="일자", y="일매출", 
+            text_auto='.2s'
         )
         fig_bar.update_traces(textposition='outside', marker_color='#0078D7', marker_line_width=0, opacity=0.8)
         fig_bar.update_layout(template='plotly_white', margin=dict(l=0, r=0, t=30, b=0), plot_bgcolor='rgba(0,0,0,0)')
@@ -297,18 +294,15 @@ else:
 
         st.divider()
 
-        st.subheader("2. 중분류별 판매율 (소진율)")
-        cat_rate_df = df_store.groupby('Category')[['Inbound', 'Sales_Qty']].sum().reset_index()
-        cat_rate_df['Sales_Rate'] = np.where(cat_rate_df['Inbound'] > 0, (cat_rate_df['Sales_Qty'] / cat_rate_df['Inbound']) * 100, 0)
+        st.subheader("2. 당월 누적 중분류별 판매율 (소진율)")
+        cat_rate_df = df_store.groupby('중분류')[['입고수량', '판매수량']].sum().reset_index()
+        cat_rate_df['판매율'] = np.where(cat_rate_df['입고수량'] > 0, (cat_rate_df['판매수량'] / cat_rate_df['입고수량']) * 100, 0)
         
-        # ✨ 가로 Bar 차트 톤앤매너 정리
         fig_rate = px.bar(
-            cat_rate_df.sort_values('Sales_Rate', ascending=True), 
-            x="Sales_Rate", y="Category", orientation='h',
-            text=cat_rate_df['Sales_Rate'].apply(lambda x: f"{x:.1f}%"),
-            labels={"Sales_Rate": "판매율 (%)", "Category": "중분류"}
+            cat_rate_df.sort_values('판매율', ascending=False), 
+            x="중분류", y="판매율", 
+            text=cat_rate_df['판매율'].apply(lambda x: f"{x:.1f}%")
         )
-        # 단일 색상으로 통일하여 깔끔하게 변경
-        fig_rate.update_traces(textposition='inside', marker_color='#4CAF50', textfont_color='white')
-        fig_rate.update_layout(template='plotly_white', showlegend=False, margin=dict(l=0, r=0, t=30, b=0), plot_bgcolor='rgba(0,0,0,0)')
+        fig_rate.update_traces(textposition='outside', marker_color='#4CAF50', textfont_color='black')
+        fig_rate.update_layout(template='plotly_white', showlegend=False, margin=dict(l=0, r=0, t=30, b=0), plot_bgcolor='rgba(0,0,0,0)', yaxis_title="판매율(%)", xaxis_title="")
         st.plotly_chart(fig_rate, use_container_width=True)
