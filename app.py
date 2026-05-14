@@ -27,7 +27,7 @@ def check_password():
         st.session_state["password_correct"] = False
     if not st.session_state["password_correct"]:
         st.title("🔒 GS25 매출 코칭 대시보드")
-        pwd = st.text_input(type="password")
+        pwd = st.text_input("비밀번호 (GS25)", type="password")
         if st.button("로그인"):
             if pwd == "GS25":
                 st.session_state["password_correct"] = True
