@@ -5,35 +5,41 @@ import plotly.express as px
 from datetime import datetime, timedelta
 
 # -----------------------------------------------------------------------------
-# 1. 페이지 기본 설정 및 디자인 (세련된 스타일 추가)
+# 1. 페이지 설정 및 세련된 디자인(CSS) 적용
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="GS25 FF 코칭 PRO MAX", page_icon="🏪", layout="wide")
 
 st.markdown("""
 <style>
     html, body, [class*="css"] { font-family: 'Pretendard', sans-serif; }
-    /* 메트릭 카드 스타일 */
+    /* 카드형 지표 스타일 */
     div[data-testid="metric-container"] {
-        background-color: #ffffff; border: 1px solid #f0f2f6;
-        padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        background-color: #ffffff; border: 1px solid #e6e9ef;
+        padding: 15px; border-radius: 12px; box-shadow: 0px 2px 10px rgba(0,0,0,0.05);
     }
-    /* 탭 디자인 */
-    button[data-baseweb="tab"] { font-weight: 700; color: #495057; }
+    /* 탭 디자인 강화 */
+    button[data-baseweb="tab"] { font-weight: 700; font-size: 16px !important; }
 </style>
 """, unsafe_allow_html=True)
 
+# -----------------------------------------------------------------------------
+# 2. 보안 로직 (비밀번호 힌트 삭제)
+# -----------------------------------------------------------------------------
 def check_password():
     if "password_correct" not in st.session_state:
         st.session_state["password_correct"] = False
+    
     if not st.session_state["password_correct"]:
-        st.title("🔒 GS25 매출 코칭 대시보드")
-        pwd = st.text_input("비밀번호 (GS25)", type="password")
+        st.title("🔒 GS25 매출 코칭 시스템")
+        # 요청사항 반영: 입력창에 비밀번호 힌트 문구 삭제
+        pwd = st.text_input("비밀번호를 입력하세요", type="password")
+        
         if st.button("로그인"):
             if pwd == "GS25":
                 st.session_state["password_correct"] = True
                 st.rerun()
             else:
-                st.error("❌ 비밀번호가 틀렸습니다.")
+                st.error("❌ 비밀번호가 일치하지 않습니다.")
         return False
     return True
 
@@ -41,111 +47,169 @@ if not check_password():
     st.stop()
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 (항목명: 파트명, 현재코드, 점포유형, 일매출 적용)
+# 3. 데이터 로드 로직 (항목명: 파트명, 현재코드, 점포유형, 일매출 적용)
 # -----------------------------------------------------------------------------
 @st.cache_data
-def load_advanced_data():
+def load_data():
+    # 마스터 정보
     store_meta = {
-        "상무본점": {"파트명": "김광주", "점포유형": "유흥가", "Power": 1.2},
-        "첨단산단점": {"파트명": "이전라", "점포유형": "오피스", "Power": 1.3}
+        "상무본점": {"파트명": "영업1팀", "점포유형": "유흥가", "현재코드": "25001"},
+        "첨단산단점": {"파트명": "영업2팀", "점포유형": "오피스", "현재코드": "25002"},
+        "수완지구점": {"파트명": "영업1팀", "점포유형": "주택가", "현재코드": "25003"}
     }
     categories = ["도시락", "김밥", "주먹밥", "햄버거/샌드위치", "FF간편식"]
     days_kr = ["월", "화", "수", "목", "금", "토", "일"]
     today = datetime.today()
 
-    daily_data = []
-    hourly_data = []
+    daily_records = []
+    hourly_records = []
 
     for store, meta in store_meta.items():
-        periods = [("당월", 0), ("전월", 30), ("전년동월", 365)]
-        for period_name, days_offset in periods:
-            days_to_generate = 14 if period_name == "당월" else 30 
-            for i in range(days_to_generate):
-                d = today - timedelta(days=i + days_offset)
+        # 기간 설정: 당월(1~14일 누적 가정), 전월(30일), 전년동월(30일)
+        for period, offset in [("당월", 0), ("전월", 30), ("전년동월", 365)]:
+            days = 14 if period == "당월" else 30
+            for i in range(days):
+                dt = today - timedelta(days=i + offset)
                 for cat in categories:
-                    base_inbound = int(np.random.randint(10, 30) * meta["Power"])
-                    sales_qty = int(base_inbound * np.random.uniform(0.7, 0.95))
-                    # '일매출' 필드로 생성
-                    daily_rev = sales_qty * np.random.randint(3000, 5000)
+                    inbound = np.random.randint(10, 40)
+                    sales = int(inbound * np.random.uniform(0.7, 0.95))
+                    # '일매출' 필드 사용
+                    revenue = sales * np.random.randint(3000, 5500)
                     
-                    daily_data.append({
-                        "일자": d.strftime("%Y-%m-%d"),
-                        "기간": period_name,
-                        "요일": days_kr[d.weekday()],
+                    daily_records.append({
+                        "일자": dt.strftime("%Y-%m-%d"),
+                        "기간": period,
+                        "요일": days_kr[dt.weekday()],
                         "점포명": store,
+                        "현재코드": meta["현재코드"],
                         "점포유형": meta["점포유형"],
+                        "파트명": meta["파트명"],
                         "중분류": cat,
-                        "입고수량": base_inbound,
-                        "판매수량": sales_qty,
-                        "일매출": daily_rev
+                        "입고수량": inbound,
+                        "판매수량": sales,
+                        "일매출": revenue
                     })
-        # 시간대 데이터 생략 (동일 로직)
-    return pd.DataFrame(daily_data), pd.DataFrame(), store_meta, categories
+        
+        # 시간대별 데이터
+        for day in days_kr:
+            for hr in range(24):
+                hourly_records.append({
+                    "점포명": store, "요일": day, "결제시간대": hr,
+                    "판매량": np.random.randint(5, 50)
+                })
 
-df_all_daily, _, store_meta, cat_list = load_advanced_data()
+    return pd.DataFrame(daily_records), pd.DataFrame(hourly_records), store_meta
+
+df_daily, df_hourly, store_meta = load_data()
 
 # -----------------------------------------------------------------------------
-# 3. 사이드바 및 메인 레이아웃
+# 4. 사이드바 검색 (모바일 최적화)
 # -----------------------------------------------------------------------------
 st.sidebar.header("🔍 분석 조건")
-part_list = list(set([meta["파트명"] for meta in store_meta.values()]))
-selected_part = st.sidebar.selectbox("담당 파트명", part_list, index=None, placeholder="선택하세요")
+part_list = sorted(list(set(df_daily['파트명'])))
+selected_part = st.sidebar.selectbox("담당 파트명", part_list, index=None, placeholder="파트 선택/검색")
 
 if selected_part:
-    store_list = [store for store, meta in store_meta.items() if meta["파트명"] == selected_part]
-    selected_store = st.sidebar.selectbox("점포 선택", store_list, index=None, placeholder="점포명 검색")
+    stores_in_part = sorted(list(set(df_daily[df_daily['파트명'] == selected_part]['점포명'])))
+    selected_store = st.sidebar.selectbox("점포 선택", stores_in_part, index=None, placeholder="점포명 선택/검색")
 
 # -----------------------------------------------------------------------------
-# 4. 분석 리포트 화면
+# 5. 메인 리포트 화면
 # -----------------------------------------------------------------------------
 if not selected_part or not selected_store:
-    st.info("👈 사이드바에서 조건을 선택해 주세요.")
+    st.info("👈 왼쪽 사이드바에서 파트와 점포를 선택해 주세요.")
 else:
-    df_store_all = df_all_daily[df_all_daily['점포명'] == selected_store]
-    
-    tab1, tab2, tab3 = st.tabs(["💡 발주/진열 코칭", "🏆 상권 베스트", "📈 요약"])
+    # 데이터 필터링
+    df_s = df_daily[df_daily['점포명'] == selected_store]
+    df_h = df_hourly[df_hourly['점포명'] == selected_store]
+    curr_area = store_meta[selected_store]["점포유형"]
 
+    # 기간 표시
+    st.markdown("##### 🗓️ 분석 기준 기간")
+    p_cols = st.columns(3)
+    for i, p in enumerate(["당월", "전월", "전년동월"]):
+        temp = df_s[df_s['기간'] == p]
+        p_cols[i].caption(f"**{p}**: {temp['일자'].min()} ~ {temp['일자'].max()}")
+    
+    st.markdown("---")
+
+    tab1, tab2, tab3 = st.tabs(["💡 발주/진열 코칭", "🏆 상권 베스트", "📈 매출 흐름 요약"])
+
+    # --- TAB 1: 코칭 및 시간대 분석 ---
     with tab1:
         st.subheader("1. 📉 과거 FF 매출 흐름 (단위: 천원)")
         
-        # 기간별 '일매출' 합계 계산 및 천원 단위 변환
-        def get_rev_k(period):
-            val = df_store_all[df_store_all['기간'] == period]['일매출'].sum()
-            return val / 1000
-
-        rev_df = pd.DataFrame({
+        # 매출 합계 및 천원 단위 환산
+        def get_k_rev(p): return df_s[df_s['기간'] == p]['일매출'].sum() / 1000
+        
+        rev_data = pd.DataFrame({
             "구분": ["작년 동월", "전월 전체", "당월 누적"],
-            "금액": [get_rev_k("전년동월"), get_rev_k("전월"), get_rev_k("당월")]
+            "금액": [get_k_rev("전년동월"), get_k_rev("전월"), get_k_rev("당월")]
         })
 
-        # ✨ 그래프를 세련되게 만들기 위한 레이아웃 조정 (중앙 배치)
-        _, col_chart, _ = st.columns([0.15, 0.7, 0.15]) 
-        
-        with col_chart:
-            fig_rev = px.bar(
-                rev_df, x="구분", y="금액",
-                text=rev_df['금액'].apply(lambda x: f"{x:,.0f}천원"),
-                color="구분",
-                color_discrete_map={"작년 동월": "#CED4DA", "전월 전체": "#ADB5BD", "당월 누적": "#0078D7"}
-            )
-            
-            # ✨ 세련된 스타일링: 막대 너비 조절 및 디자인 정제
-            fig_rev.update_traces(
-                width=0.4, # 막대 너비를 슬림하게 (촌스러움 해소)
-                textposition='outside',
-                textfont_size=13,
-                marker_line_width=0
-            )
-            
-            fig_rev.update_layout(
-                template='plotly_white',
-                showlegend=False,
-                margin=dict(l=20, r=20, t=50, b=20),
-                plot_bgcolor='rgba(0,0,0,0)',
-                yaxis=dict(showgrid=True, gridcolor='#F1F3F5', title="", showticklabels=False),
-                xaxis=dict(title="", tickfont_size=14)
-            )
+        # 세련된 레이아웃: 막대 너비 조절 및 중앙 배치
+        _, chart_col, _ = st.columns([0.1, 0.8, 0.1])
+        with chart_col:
+            fig_rev = px.bar(rev_data, x="구분", y="금액", text=rev_data['금액'].apply(lambda x: f"{x:,.0f}k"),
+                             color="구분", color_discrete_map={"작년 동월":"#DEE2E6", "전월 전체":"#ADB5BD", "당월 누적":"#0078D7"})
+            fig_rev.update_traces(width=0.4, textposition='outside')
+            fig_rev.update_layout(template='plotly_white', showlegend=False, yaxis_visible=False, height=350, margin=dict(t=50))
             st.plotly_chart(fig_rev, use_container_width=True)
 
         st.divider()
-        st.caption("※ '일매출' 데이터를 기반으로 천원 단위로 환산된 결과입니다.")
+        
+        st.subheader("2. 📅 요일별 예상 판매량 및 권장 발주")
+        # 가중치 적용 로직
+        day_order = ["월", "화", "수", "목", "금", "토", "일"]
+        cats = ["도시락", "김밥", "주먹밥", "햄버거/샌드위치", "FF간편식"]
+        forecast_table = pd.DataFrame(index=cats, columns=day_order)
+
+        for c in cats:
+            for d in day_order:
+                # 기간별 평균 판매량
+                v_curr = df_s[(df_s['중분류']==c) & (df_s['요일']==d) & (df_s['기간']=="당월")]['판매수량'].mean()
+                v_prev = df_s[(df_s['중분류']==c) & (df_s['요일']==d) & (df_s['기간']=="전월")]['판매수량'].mean()
+                v_yoy = df_s[(df_s['중분류']==c) & (df_s['요일']==d) & (df_s['기간']=="전년동월")]['판매수량'].mean()
+                
+                # 가중치 합산 (당월 0.6, 전월 0.3, 전년 0.1)
+                final_v = (v_curr*0.6 if not np.isnan(v_curr) else 0) + \
+                          (v_prev*0.3 if not np.isnan(v_prev) else 0) + \
+                          (v_yoy*0.1 if not np.isnan(v_yoy) else 0)
+                
+                if final_v > 0:
+                    forecast_table.at[c, d] = f"예상 {int(final_v)} / 권장 {int(final_v*1.15)}"
+                else: forecast_table.at[c, d] = "-"
+        
+        st.dataframe(forecast_table, use_container_width=True)
+
+        st.divider()
+        st.subheader("3. ⏰ 요일별 피크타임 추이")
+        selected_day = st.radio("상세 요일 선택", ["전체"] + day_order, horizontal=True)
+        
+        plot_df = df_h.copy()
+        if selected_day != "전체": plot_df = plot_df[plot_df['요일'] == selected_day]
+        
+        fig_h = px.line(plot_df, x="결제시간대", y="판매량", color="요일", markers=True)
+        if selected_day != "전체": fig_h.update_traces(fill='tozeroy', line_color='#0078D7')
+        fig_h.update_layout(template='plotly_white', xaxis=dict(dtick=2))
+        st.plotly_chart(fig_h, use_container_width=True)
+
+    # --- TAB 3: 매출 흐름 요약 (일매출 및 판매율) ---
+    with tab3:
+        st.subheader("1. 당월 일별 FF 일매출 흐름")
+        df_curr = df_s[df_s['기간'] == "당월"].groupby('일자')['일매출'].sum().reset_index()
+        fig_day = px.bar(df_curr, x="일자", y="일매출", text_auto='.2s')
+        fig_day.update_traces(marker_color='#0078D7', width=0.6)
+        st.plotly_chart(fig_day, use_container_width=True)
+
+        st.divider()
+        st.subheader("2. 중분류별 판매율 (소진율)")
+        st.caption("판매율(%) = (판매수량 / 입고수량) × 100")
+        
+        rate_df = df_s[df_s['기간'] == "당월"].groupby('중분류')[['입고수량', '판매수량']].sum().reset_index()
+        rate_df['판매율'] = (rate_df['판매수량'] / rate_df['입고수량'] * 100).round(1)
+        
+        fig_rate = px.bar(rate_df, x="중분류", y="판매율", text=rate_df['판매율'].apply(lambda x: f"{x}%"))
+        fig_rate.update_traces(marker_color='#4CAF50', width=0.4)
+        fig_rate.update_layout(template='plotly_white', yaxis_title="판매율 (%)")
+        st.plotly_chart(fig_rate, use_container_width=True)
