@@ -28,7 +28,7 @@ def check_password():
         st.session_state["password_correct"] = False
     if not st.session_state["password_correct"]:
         st.title("🔒 GS25 매출 코칭 대시보드")
-        pwd = st.text_input("비밀번호 (GS25)", type="password")
+        pwd = st.text_input(type="password")
         if st.button("로그인"):
             if pwd == "GS25":
                 st.session_state["password_correct"] = True
@@ -192,15 +192,47 @@ else:
     # TAB 1: 발주 코칭 
     # -------------------------------------------------------
     with tab1:
-        st.subheader("1. 📉 과거 FF 매출 흐름 (해당 기간 기준)")
+        # ✨ [업데이트] 막대그래프 및 천원 단위 표기 로직
+        st.subheader("1. 📉 과거 FF 매출 흐름 (단위: 천원)")
+        
+        # 합계 계산
         curr_rev = df_store_all[df_store_all['기간'] == '당월']['일매출'].sum()
         mom_rev = df_store_all[df_store_all['기간'] == '전월']['일매출'].sum()
         yoy_rev = df_store_all[df_store_all['기간'] == '전년동월']['일매출'].sum()
         
-        col1, col2, col3 = st.columns(3)
-        col1.metric("당월 누적 일매출 합계", f"{curr_rev:,.0f}원")
-        col2.metric("전월 전체", f"{mom_rev:,.0f}원")
-        col3.metric("작년 동월 전체", f"{yoy_rev:,.0f}원")
+        # 단위 변환 (천원)
+        curr_rev_k = curr_rev / 1000
+        mom_rev_k = mom_rev / 1000
+        yoy_rev_k = yoy_rev / 1000
+        
+        # 막대그래프용 데이터프레임 생성 (시간 순서대로 배열)
+        rev_df = pd.DataFrame({
+            "기간": ["작년 동월 전체", "전월 전체", "당월 누적"],
+            "매출액(천원)": [yoy_rev_k, mom_rev_k, curr_rev_k]
+        })
+        
+        # Plotly 막대그래프 생성
+        fig_rev_bar = px.bar(
+            rev_df, 
+            x="기간", 
+            y="매출액(천원)",
+            text=rev_df['매출액(천원)'].apply(lambda x: f"{x:,.0f}천원"), # 막대 위에 숫자+천원 표시
+            color="기간", 
+            color_discrete_sequence=['#B0BEC5', '#90A4AE', '#0078D7'] # 당월만 파란색으로 강조
+        )
+        
+        # 그래프 디자인 세팅
+        fig_rev_bar.update_traces(textposition='outside', textfont_size=14, marker_line_width=0)
+        fig_rev_bar.update_layout(
+            template='plotly_white', 
+            showlegend=False, 
+            margin=dict(l=0, r=0, t=30, b=0), 
+            plot_bgcolor='rgba(0,0,0,0)',
+            yaxis=dict(showticklabels=False, title=""), # y축 숫자 숨김 (텍스트가 있으므로)
+            xaxis=dict(title="")
+        )
+        
+        st.plotly_chart(fig_rev_bar, use_container_width=True)
 
         st.divider()
 
@@ -231,7 +263,6 @@ else:
 
         st.divider()
 
-        # ✨ [업데이트] 요일 선택형 피크타임 차트
         st.subheader("3. ⏰ 시간대별 집중도 추이 (피크 타임)")
         
         peak_texts = []
@@ -243,19 +274,16 @@ else:
         
         st.info("📌 **전체 요일별 최고점 시간대 요약:** " + " | ".join(peak_texts))
         
-        # 라디오 버튼으로 요일 선택 기능 추가
         selected_day_chart = st.radio("그래프 조회 조건 선택", ["전체"] + day_order, horizontal=True)
         
         df_line = df_store_hour.groupby(['요일', '결제시간대'])['판매량'].mean().reset_index()
         df_line['요일'] = pd.Categorical(df_line['요일'], categories=day_order, ordered=True)
         
-        # 선택된 요일만 필터링
         if selected_day_chart != "전체":
             df_line = df_line[df_line['요일'] == selected_day_chart]
             
         df_line = df_line.sort_values(['요일', '결제시간대'])
 
-        # 차트 그리기 (전체일 때는 선만, 특정 요일일 때는 밑색 채우기)
         if selected_day_chart == "전체":
             fig_line = px.line(
                 df_line, x="결제시간대", y="판매량", color="요일", 
@@ -266,7 +294,6 @@ else:
                 df_line, x="결제시간대", y="판매량", 
                 markers=True, labels={"판매량": "평균 판매건수"}
             )
-            # 단일 요일 선택 시 차트를 돋보이게 영역 색칠
             fig_line.update_traces(fill='tozeroy', line_color='#0078D7', fillcolor='rgba(0, 120, 215, 0.2)')
 
         fig_line.update_xaxes(tickmode='linear', tick0=0, dtick=2) 
