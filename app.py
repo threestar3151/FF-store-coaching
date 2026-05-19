@@ -21,11 +21,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 로드 (사장님의 엑셀 데이터를 그대로 사용!)
+# 2. 데이터 로드 (클라우드/깃허브 환경 완벽 호환)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
-    # 사장님이 만드신 'FF 테스트 2.xlsx' 파일 하나에서 모든 시트를 읽어옵니다.
+    # 깃허브에 함께 업로드된 'FF 테스트 2.xlsx' 파일을 스트림릿이 알아서 읽어옵니다.
     file_name = 'FF 테스트 2.xlsx'
     master = pd.read_excel(file_name, sheet_name='Store_Master')
     ff_agg = pd.read_excel(file_name, sheet_name='FF_Agg')
@@ -38,7 +38,7 @@ def load_data():
 try:
     master, ff_agg, hourly, subcat, forecast, area_best = load_data()
 except Exception as e:
-    st.error(f"🚨 데이터를 불러오지 못했습니다. 'FF 테스트 2.xlsx' 파일이 app.py와 같은 폴더에 있는지 확인해주세요.\n상세 에러: {e}")
+    st.error(f"🚨 데이터를 불러오지 못했습니다. 깃허브(GitHub) 저장소에 'FF 테스트 2.xlsx' 파일이 app.py와 함께 잘 업로드되었는지 확인해주세요.\n상세 에러: {e}")
     st.stop()
 
 # -----------------------------------------------------------------------------
@@ -47,6 +47,7 @@ except Exception as e:
 st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/GS25_logo.svg/1024px-GS25_logo.svg.png", width=150)
 st.sidebar.markdown("---")
 st.sidebar.title("🔍 경영주 코칭 세팅")
+st.sidebar.caption("✅ 스트림릿 클라우드 연동 버전")
 
 # 1. 파트명 선택 (검색 지원)
 part_list = sorted(master['파트명'].dropna().unique())
