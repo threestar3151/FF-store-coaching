@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import requests
 import io
 
@@ -25,8 +24,6 @@ st.markdown("""
         padding: 10px 16px; border-radius: 6px;
         font-size: 0.88rem; color: #444; margin-bottom: 8px;
     }
-    .top-badge  { color: #ffffff; background:#0078D7; padding:2px 8px; border-radius:4px; font-size:0.8rem; }
-    .weak-badge { color: #ffffff; background:#E53935; padding:2px 8px; border-radius:4px; font-size:0.8rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -52,18 +49,14 @@ def load_data():
     subcat    = read('Subcat_Summary')
     forecast  = read('Forecast_Wide')
     area_best = read('Area_Best')
+    sku_top   = read('SKU_Top')
+    sku_weak  = read('SKU_Weak')
 
-    # SKU 시트 — 없으면 빈 DataFrame 반환
-    try:
-        sku = read('SKU_Detail')
-    except Exception:
-        sku = pd.DataFrame()
-
-    return master, ff_agg, hourly, subcat, forecast, area_best, sku
+    return master, ff_agg, hourly, subcat, forecast, area_best, sku_top, sku_weak
 
 with st.spinner("📥 Google Sheets에서 데이터를 불러오는 중..."):
     try:
-        master, ff_agg, hourly, subcat, forecast, area_best, sku = load_data()
+        master, ff_agg, hourly, subcat, forecast, area_best, sku_top, sku_weak = load_data()
     except Exception as e:
         st.error(
             f"🚨 데이터를 불러오지 못했습니다.\n\n"
@@ -109,14 +102,14 @@ if selected_store:
         unsafe_allow_html=True
     )
 
-    # ── 데이터 산정 기간 안내 배너 ──────────────────────────────
+    # 데이터 산정 기간 안내 배너
     st.markdown("""
     <div class='period-box'>
     📅 <b>데이터 산정 기간 및 기준</b> &nbsp;|&nbsp;
     작년 동월: 2025년 5월 전체 &nbsp;|&nbsp;
     전월: 2026년 4월 전체 &nbsp;|&nbsp;
-    당월 누적: 2026년 5월 1일~최신일 &nbsp;|&nbsp;
-    시간대·SKU: 당월 누적 기준
+    당월 누적: 2026년 5월 1일 ~ 최신일 &nbsp;|&nbsp;
+    시간대 · SKU: 당월 누적 기준
     </div>
     """, unsafe_allow_html=True)
 
@@ -151,7 +144,7 @@ if selected_store:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════════════
-    # [섹션 2] 매출 추이 & 시간대별 객수 (전체/평일/주말 토글)
+    # [섹션 2] 매출 추이 & 시간대별 객수
     # ═══════════════════════════════════════════════════════════
     col_left, col_right = st.columns(2)
 
@@ -174,7 +167,6 @@ if selected_store:
     with col_right:
         st.subheader("2. ⏰ 자점 시간대별 방문 일 객수")
 
-        # ── 전체 / 평일 / 주말 선택 버튼 ──
         view_option = st.radio(
             "기간 구분",
             options=["전체", "평일", "주말"],
@@ -194,9 +186,9 @@ if selected_store:
             if hour_cols:
                 hour_data = store_hour[hour_cols].iloc[0].values
                 x_labels  = [f"{i}시" for i in range(len(hour_cols))]
-
                 color_map = {"전체": "#FF9800", "평일": "#0078D7", "주말": "#E53935"}
-                fig_line  = px.line(x=x_labels, y=hour_data, markers=True)
+
+                fig_line = px.line(x=x_labels, y=hour_data, markers=True)
                 fig_line.update_traces(
                     line_color=color_map.get(view_option, "#FF9800"),
                     fill='tozeroy'
@@ -214,7 +206,7 @@ if selected_store:
     st.divider()
 
     # ═══════════════════════════════════════════════════════════
-    # [섹션 3] 발주 가이드 & 상권 베스트
+    # [섹션 3] 발주 가이드 & 상권 베스트 & 판매율
     # ═══════════════════════════════════════════════════════════
     st.subheader("3. 💡 데이터 기반 요일별 맞춤 발주 (당월 0.7 + 전월 0.3)")
     store_forecast = forecast[forecast['점포명'] == selected_store].drop(
@@ -251,68 +243,53 @@ if selected_store:
     st.divider()
 
     # ═══════════════════════════════════════════════════════════
-    # [섹션 4] 판매수량 TOP 5 SKU & 판매율 취약 SKU
+    # [섹션 4] 판매수량 TOP SKU & 판매율 취약 SKU
     # ═══════════════════════════════════════════════════════════
-    if not sku.empty:
-        store_sku = sku[sku['점포명'] == selected_store].copy()
+    col_sku1, col_sku2 = st.columns(2)
 
-        # 판매율 컬럼 계산 (없으면 입고/판매로 직접 계산)
-        if '판매율' not in store_sku.columns:
-            store_sku['판매율'] = (
-                store_sku['판매수량'] / store_sku['입고수량'].replace(0, pd.NA)
-            ).fillna(0)
+    # 공통 컬럼 순서 (시트 실제 컬럼명 기준)
+    SKU_COLS = ['순위', '중분류', '상품명', '입고', '판매', '판매율']
 
-        store_sku['판매율(%)'] = (store_sku['판매율'] * 100).round(1)
+    with col_sku1:
+        st.subheader("6. 🥇 판매수량 TOP SKU")
+        st.caption("📅 SKU 26년 4월~26년 5월, 판매수량 기준 TOP 10")
 
-        SKU_COLS = ['중분류', '상품명', '입고수량', '판매수량', '판매율(%)']
-        sku_show = [c for c in SKU_COLS if c in store_sku.columns]
+        store_top = sku_top[sku_top['점포명'] == selected_store].copy()
 
-        col_sku1, col_sku2 = st.columns(2)
+        if not store_top.empty:
+            show_cols = [c for c in SKU_COLS if c in store_top.columns]
+            store_top = store_top[show_cols].sort_values('순위').reset_index(drop=True)
 
-        with col_sku1:
-            st.markdown("### 🥇 판매수량 TOP 5 SKU")
-            st.caption("📅 당월 누적 기준 | 판매수량 내림차순")
-            top5 = (
-                store_sku.sort_values('판매수량', ascending=False)
-                .head(5)[sku_show]
-                .reset_index(drop=True)
-            )
-            top5.index = top5.index + 1  # 1번부터 시작
+            # 판매율 % 변환
+            if '판매율' in store_top.columns:
+                store_top['판매율'] = (store_top['판매율'] * 100).round(1).astype(str) + '%'
 
-            # 판매율 높을수록 초록색 강조
             st.dataframe(
-                top5.style.background_gradient(
-                    subset=['판매율(%)'] if '판매율(%)' in top5.columns else [],
-                    cmap='Greens'
-                ),
-                use_container_width=True
+                store_top,
+                use_container_width=True,
+                hide_index=True
             )
+        else:
+            st.info("해당 점포의 TOP SKU 데이터가 없습니다.")
 
-        with col_sku2:
-            st.markdown("### ⚠️ 판매율 취약 SKU TOP 5")
-            st.caption("📅 당월 누적 기준 | 입고수량 1개 이상, 판매율 오름차순")
-            weak5 = (
-                store_sku[store_sku['입고수량'] > 0]
-                .sort_values('판매율', ascending=True)
-                .head(5)[sku_show]
-                .reset_index(drop=True)
-            )
-            weak5.index = weak5.index + 1
+    with col_sku2:
+        st.subheader("7. ⚠️ 판매율 취약 SKU")
+        st.caption("📅 SKU 26년 4월~26년 5월, 입고 5개 이상 품목 중 판매율 낮은 순")
 
-            # 판매율 낮을수록 빨간색 강조
+        store_weak = sku_weak[sku_weak['점포명'] == selected_store].copy()
+
+        if not store_weak.empty:
+            show_cols = [c for c in SKU_COLS if c in store_weak.columns]
+            store_weak = store_weak[show_cols].sort_values('순위').reset_index(drop=True)
+
+            # 판매율 % 변환
+            if '판매율' in store_weak.columns:
+                store_weak['판매율'] = (store_weak['판매율'] * 100).round(1).astype(str) + '%'
+
             st.dataframe(
-                weak5.style.background_gradient(
-                    subset=['판매율(%)'] if '판매율(%)' in weak5.columns else [],
-                    cmap='Reds_r'
-                ),
-                use_container_width=True
+                store_weak,
+                use_container_width=True,
+                hide_index=True
             )
-
-    else:
-        # SKU 시트가 없을 경우 안내
-        st.markdown("### 🥇 판매수량 TOP 5 & ⚠️ 판매율 취약 SKU")
-        st.warning(
-            "SKU 상세 데이터가 없습니다.\n\n"
-            "Google Sheets에 **`SKU_Detail`** 시트를 추가해주세요.\n\n"
-            "필요 컬럼: `점포명` / `중분류` / `상품명` / `입고수량` / `판매수량`"
-        )
+        else:
+            st.info("해당 점포의 취약 SKU 데이터가 없습니다.")
