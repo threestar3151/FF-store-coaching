@@ -25,19 +25,20 @@ st.markdown("""
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
-    # 사장님이 만드신 CSV 파일 이름을 정확히 읽어옵니다.
-    master = pd.read_csv('Store_Master.csv')
-    ff_agg = pd.read_csv('FF_Agg.csv')
-    hourly = pd.read_csv('Hourly_Wide.csv')
-    subcat = pd.read_csv('Subcat_Summary.csv')
-    forecast = pd.read_csv('Forecast_Wide.csv')
-    area_best = pd.read_csv('Area_Best.csv')
+    # 사장님이 만드신 'FF 테스트 2.xlsx' 파일 하나에서 모든 시트를 읽어옵니다.
+    file_name = 'FF 테스트 2.xlsx'
+    master = pd.read_excel(file_name, sheet_name='Store_Master')
+    ff_agg = pd.read_excel(file_name, sheet_name='FF_Agg')
+    hourly = pd.read_excel(file_name, sheet_name='Hourly_Wide')
+    subcat = pd.read_excel(file_name, sheet_name='Subcat_Summary')
+    forecast = pd.read_excel(file_name, sheet_name='Forecast_Wide')
+    area_best = pd.read_excel(file_name, sheet_name='Area_Best')
     return master, ff_agg, hourly, subcat, forecast, area_best
 
 try:
     master, ff_agg, hourly, subcat, forecast, area_best = load_data()
 except Exception as e:
-    st.error("🚨 데이터를 불러오지 못했습니다. 파이썬 파일과 동일한 폴더에 CSV 파일들이 있는지 확인해주세요.")
+    st.error(f"🚨 데이터를 불러오지 못했습니다. 'FF 테스트 2.xlsx' 파일이 app.py와 같은 폴더에 있는지 확인해주세요.\n상세 에러: {e}")
     st.stop()
 
 # -----------------------------------------------------------------------------
