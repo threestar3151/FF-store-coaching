@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
-from datetime import datetime, timedelta
+import plotly.graph_objects as go
 
 # -----------------------------------------------------------------------------
-# 1. 페이지 설정 및 디자인(CSS)
+# 1. 페이지 설정 및 디자인 (GS25 테마)
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="GS25 FF 코칭 PRO MAX", page_icon="🏪", layout="wide")
 
@@ -14,228 +13,130 @@ st.markdown("""
     html, body, [class*="css"] { font-family: 'Pretendard', sans-serif; }
     div[data-testid="metric-container"] {
         background-color: #ffffff; border: 1px solid #e6e9ef;
-        padding: 15px; border-radius: 12px; box-shadow: 0px 2px 10px rgba(0,0,0,0.05);
+        padding: 20px; border-radius: 12px; box-shadow: 0px 4px 15px rgba(0,0,0,0.05);
     }
-    button[data-baseweb="tab"] { font-weight: 700; font-size: 16px !important; }
+    .main-header { color: #0078D7; font-weight: 800; font-size: 2rem; margin-bottom: 0px; }
+    .sub-header { color: #606060; font-size: 1.1rem; margin-bottom: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. 보안 로직 (비밀번호 힌트 삭제)
-# -----------------------------------------------------------------------------
-def check_password():
-    if "password_correct" not in st.session_state:
-        st.session_state["password_correct"] = False
-    
-    if not st.session_state["password_correct"]:
-        st.title("🔒 GS25 매출 코칭 시스템")
-        # 요청사항: 힌트 문구 없이 깔끔하게 변경
-        pwd = st.text_input("비밀번호를 입력하세요", type="password")
-        
-        if st.button("로그인"):
-            if pwd == "GS25":
-                st.session_state["password_correct"] = True
-                st.rerun()
-            else:
-                st.error("❌ 비밀번호가 일치하지 않습니다.")
-        return False
-    return True
-
-if not check_password():
-    st.stop()
-
-# -----------------------------------------------------------------------------
-# 3. 데이터 로드 (파트명, 현재코드, 점포유형, 일매출 적용 가상 데이터)
+# 2. 데이터 로드 (사장님의 엑셀 데이터를 그대로 사용!)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
-    # 광주 지역 기반 점포 정보
-    store_meta = {
-        "상무본점": {"파트명": "영업1팀", "점포유형": "유흥가", "현재코드": "25001"},
-        "첨단산단점": {"파트명": "영업2팀", "점포유형": "오피스", "현재코드": "25002"},
-        "수완지구점": {"파트명": "영업1팀", "점포유형": "주택가", "현재코드": "25003"}
-    }
-    categories = ["도시락", "김밥", "주먹밥", "햄버거/샌드위치", "FF간편식"]
-    products = {
-        "도시락": ["혜자로운집밥", "정통커리도시락", "고기진짜많구나"],
-        "김밥": ["참치김밥", "불고기김밥", "야채김밥"],
-        "주먹밥": ["참치마요삼각", "전주비빔삼각", "소고기볶음고추장"],
-        "햄버거/샌드위치": ["에그마요샌드", "불고기버거", "듬뿍햄샌드"],
-        "FF간편식": ["위대한떡볶이", "더큰반반닭강정", "떠먹는피자"]
-    }
-    days_kr = ["월", "화", "수", "목", "금", "토", "일"]
-    today = datetime.today()
+    # 사장님이 만드신 CSV 파일 이름을 정확히 읽어옵니다.
+    master = pd.read_csv('Store_Master.csv')
+    ff_agg = pd.read_csv('FF_Agg.csv')
+    hourly = pd.read_csv('Hourly_Wide.csv')
+    subcat = pd.read_csv('Subcat_Summary.csv')
+    forecast = pd.read_csv('Forecast_Wide.csv')
+    area_best = pd.read_csv('Area_Best.csv')
+    return master, ff_agg, hourly, subcat, forecast, area_best
 
-    daily_records = []
-    hourly_records = []
-
-    for store, meta in store_meta.items():
-        for period, offset in [("당월", 0), ("전월", 30), ("전년동월", 365)]:
-            # 당월은 현재 시점(D-1)까지의 누적을 위해 14일치만 생성
-            days = 14 if period == "당월" else 30
-            for i in range(days):
-                dt = today - timedelta(days=i + offset)
-                for cat in categories:
-                    for prod in products[cat]:
-                        inbound = np.random.randint(10, 40)
-                        sales = int(inbound * np.random.uniform(0.7, 0.95))
-                        # 일매출 필드 생성
-                        revenue = sales * np.random.randint(3000, 5500)
-                        
-                        daily_records.append({
-                            "일자": dt.strftime("%Y-%m-%d"),
-                            "기간": period,
-                            "요일": days_kr[dt.weekday()],
-                            "점포명": store,
-                            "현재코드": meta["현재코드"],
-                            "점포유형": meta["점포유형"],
-                            "파트명": meta["파트명"],
-                            "중분류": cat,
-                            "상품명": prod,
-                            "입고수량": inbound,
-                            "판매수량": sales,
-                            "일매출": revenue
-                        })
-        for day in days_kr:
-            for hr in range(24):
-                hourly_records.append({
-                    "점포명": store, "요일": day, "결제시간대": hr,
-                    "판매량": np.random.randint(5, 50)
-                })
-
-    return pd.DataFrame(daily_records), pd.DataFrame(hourly_records), store_meta
-
-df_daily_all, df_hourly, store_meta = load_data()
+try:
+    master, ff_agg, hourly, subcat, forecast, area_best = load_data()
+except Exception as e:
+    st.error("🚨 데이터를 불러오지 못했습니다. 파이썬 파일과 동일한 폴더에 CSV 파일들이 있는지 확인해주세요.")
+    st.stop()
 
 # -----------------------------------------------------------------------------
-# 4. 사이드바 검색
+# 3. 사이드바: 파트 및 점포 선택 (이중 드롭다운 완벽 구현)
 # -----------------------------------------------------------------------------
-st.sidebar.header("🔍 분석 조건")
-part_list = sorted(list(set(df_daily_all['파트명'])))
-selected_part = st.sidebar.selectbox("담당 파트명", part_list, index=None, placeholder="파트 선택/검색")
+st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/GS25_logo.svg/1024px-GS25_logo.svg.png", width=150)
+st.sidebar.markdown("---")
+st.sidebar.title("🔍 경영주 코칭 세팅")
 
-selected_store = None
-if selected_part:
-    stores_in_part = sorted(list(set(df_daily_all[df_daily_all['파트명'] == selected_part]['점포명'])))
-    selected_store = st.sidebar.selectbox("점포 선택", stores_in_part, index=None, placeholder="점포명 선택/검색")
+# 1. 파트명 선택 (검색 지원)
+part_list = sorted(master['파트명'].dropna().unique())
+selected_part = st.sidebar.selectbox("1. 파트명 (OFC) 선택", part_list, index=0)
+
+# 2. 파트명에 종속된 점포명 리스트 생성 및 선택
+store_list = sorted(master[master['파트명'] == selected_part]['점포명'].dropna().unique())
+selected_store = st.sidebar.selectbox("2. 점포명 선택", store_list)
 
 # -----------------------------------------------------------------------------
-# 5. 메인 리포트 화면
+# 4. 메인 화면 UI 구현
 # -----------------------------------------------------------------------------
-st.title("📊 GS25 현장 맞춤형 코칭 리포트")
-
-if not selected_part or not selected_store:
-    st.info("👈 왼쪽 사이드바에서 파트와 점포를 먼저 선택해 주세요.")
-else:
-    df_s_all = df_daily_all[df_daily_all['점포명'] == selected_store]
-    df_s_curr = df_s_all[df_s_all['기간'] == "당월"]
-    current_area = store_meta[selected_store]["점포유형"]
-
-    # 상단 분석 기간 출력
-    st.markdown("##### 🗓️ 분석 기준 기간")
-    p_cols = st.columns(3)
-    for i, p in enumerate(["당월", "전월", "전년동월"]):
-        temp = df_s_all[df_s_all['기간'] == p]
-        if not temp.empty:
-            p_cols[i].caption(f"**{p}**: {temp['일자'].min()} ~ {temp['일자'].max()}")
+if selected_store:
+    # 점포 마스터 정보
+    store_info = master[master['점포명'] == selected_store].iloc[0]
     
-    st.markdown("---")
+    st.markdown(f"<div class='main-header'>🏪 {selected_store} 맞춤형 FF 코칭 리포트</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub-header'>📍 파트: {store_info['파트명']} | 팀: {store_info['팀']} | 상권유형: {store_info['점포유형']} | 점포코드: {store_info['현재코드']}</div>", unsafe_allow_html=True)
+    
+    st.divider()
 
-    tab1, tab2, tab3 = st.tabs(["💡 발주/진열 코칭", "🏆 상권 베스트", "📈 매출 흐름 요약"])
+    # --- [섹션 1] 핵심 성과 지표 (KPI) ---
+    st.markdown("### 📈 과거 FF 총 매출 흐름 (단위: 천원)")
+    
+    store_ff = ff_agg[ff_agg['점포명'] == selected_store]
+    
+    def get_rev(role):
+        val = store_ff[store_ff['역할'] == role]['일매출천원']
+        return float(val.iloc[0]) if not val.empty else 0
+        
+    rev_ly = get_rev('전년동월')
+    rev_pm = get_rev('전월')
+    rev_cm = get_rev('당월')
 
-    # -------------------------------------------------------
-    # TAB 1: 발주/진열 코칭 (과거 매출 차트 + 표 + 피크타임)
-    # -------------------------------------------------------
-    with tab1:
-        # 1. 과거 매출 흐름
-        st.subheader("1. 📉 과거 FF 매출 흐름 (단위: 천원)")
-        def get_k_rev(p): return df_s_all[df_s_all['기간'] == p]['일매출'].sum() / 1000
-        rev_data = pd.DataFrame({
-            "구분": ["작년 동월", "전월 전체", "당월 누적"],
-            "금액": [get_k_rev("전년동월"), get_k_rev("전월"), get_k_rev("당월")]
-        })
-        
-        _, chart_col, _ = st.columns([0.1, 0.8, 0.1])
-        with chart_col:
-            fig_rev = px.bar(rev_data, x="구분", y="금액", text=rev_data['금액'].apply(lambda x: f"{x:,.0f}k"),
-                            color="구분", color_discrete_map={"작년 동월":"#DEE2E6", "전월 전체":"#ADB5BD", "당월 누적":"#0078D7"})
-            fig_rev.update_traces(width=0.4, textposition='outside')
-            fig_rev.update_layout(template='plotly_white', showlegend=False, yaxis_visible=False, height=350)
-            st.plotly_chart(fig_rev, use_container_width=True)
+    col1, col2, col3 = st.columns(3)
+    col1.metric("작년 동월 (25년 5월)", f"{rev_ly:,.1f} 천원")
+    col2.metric("전월 전체 (26년 4월)", f"{rev_pm:,.1f} 천원", f"{(rev_pm - rev_ly)/rev_ly*100:.1f}%" if rev_ly else "0%")
+    col3.metric("당월 누적 (26년 5월)", f"{rev_cm:,.1f} 천원", f"{(rev_cm - rev_pm)/rev_pm*100:.1f}%" if rev_pm else "0%")
 
-        st.divider()
-        
-        # 2. 요일별 맞춤 발주 표
-        st.subheader("2. 📅 데이터 기반 요일별 맞춤 발주")
-        st.markdown("> **[당월 60% + 전월 30% + 전년동월 10%]** 가중치 적용 예상치")
-        
-        day_order = ["월", "화", "수", "목", "금", "토", "일"]
-        cats = ["도시락", "김밥", "주먹밥", "햄버거/샌드위치", "FF간편식"]
-        forecast_table = pd.DataFrame(index=cats, columns=day_order)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-        for c in cats:
-            for d in day_order:
-                v_curr = df_s_all[(df_s_all['중분류']==c) & (df_s_all['요일']==d) & (df_s_all['기간']=="당월")]['판매수량'].mean()
-                v_prev = df_s_all[(df_s_all['중분류']==c) & (df_s_all['요일']==d) & (df_s_all['기간']=="전월")]['판매수량'].mean()
-                v_yoy = df_s_all[(df_s_all['중분류']==c) & (df_s_all['요일']==d) & (df_s_all['기간']=="전년동월")]['판매수량'].mean()
-                
-                final_v = (v_curr*0.6 if pd.notnull(v_curr) else 0) + \
-                          (v_prev*0.3 if pd.notnull(v_prev) else 0) + \
-                          (v_yoy*0.1 if pd.notnull(v_yoy) else 0)
-                
-                forecast_table.at[c, d] = f"예상 {int(final_v)} / 발주 {int(final_v*1.15)}" if final_v > 0 else "-"
-        
-        st.dataframe(forecast_table, use_container_width=True)
+    # --- [섹션 2] 매출 추이 & 피크타임 차트 ---
+    col_left, col_right = st.columns(2)
 
-        st.divider()
+    with col_left:
+        st.subheader("1. 📊 과거 매출 추이")
+        # 막대 차트 (전년/전월/당월)
+        fig_bar = px.bar(store_ff, x='기간', y='일매출천원', text='일매출천원', color='역할',
+                         color_discrete_map={'전년동월':'#DEE2E6', '전월':'#ADB5BD', '당월':'#0078D7'})
+        fig_bar.update_traces(textposition='outside', width=0.4)
+        fig_bar.update_layout(template='plotly_white', showlegend=False, yaxis_title="일매출 (천원)", xaxis_title="", height=350)
+        st.plotly_chart(fig_bar, use_container_width=True)
 
-        # 3. 시간대별 집중도
-        st.subheader("3. ⏰ 시간대별 집중도 추이 (피크 타임)")
-        sel_day = st.radio("요일 선택", ["전체"] + day_order, horizontal=True)
+    with col_right:
+        st.subheader("2. ⏰ 자점 시간대별 방문 일 객수")
+        store_hour = hourly[(hourly['점포명'] == selected_store) & (hourly['보기'] == '전체')]
         
-        df_h = df_hourly[df_hourly['점포명'] == selected_store]
-        if sel_day != "전체":
-            df_h = df_h[df_h['요일'] == sel_day]
-        
-        fig_h = px.line(df_h, x="결제시간대", y="판매량", color="요일", markers=True)
-        if sel_day != "전체":
-            fig_h.update_traces(fill='tozeroy', line_color='#0078D7')
-        fig_h.update_layout(template='plotly_white', xaxis=dict(dtick=2), height=400)
-        st.plotly_chart(fig_h, use_container_width=True)
-
-    # -------------------------------------------------------
-    # TAB 2: 상권 베스트 상품 점검
-    # -------------------------------------------------------
-    with tab2:
-        st.subheader(f"🏆 [{current_area}] 상권 베스트 상품 점검")
-        df_area = df_daily_all[(df_daily_all['점포유형'] == current_area) & (df_daily_all['기간'] == "당월")]
-        
-        if df_area.empty:
-            st.warning("상권 데이터가 부족합니다.")
+        if not store_hour.empty:
+            hours = [f'H{str(i).zfill(2)}' for i in range(24)]
+            hour_data = store_hour[hours].iloc[0].values
+            
+            # 꺾은선 차트 (시간대별 트래픽)
+            fig_line = px.line(x=[f"{i}시" for i in range(24)], y=hour_data, markers=True)
+            fig_line.update_traces(line_color='#FF9800', fill='tozeroy')
+            fig_line.update_layout(template='plotly_white', xaxis_title="결제시간대", yaxis_title="방문 객수", height=350)
+            st.plotly_chart(fig_line, use_container_width=True)
         else:
-            best_list = []
-            for cat in sorted(list(set(df_area['중분류']))):
-                top = df_area[df_area['중분류'] == cat].groupby('상품명')['판매수량'].sum().idxmax()
-                my_item = df_s_curr[df_s_curr['상품명'] == top]
-                inbound = int(my_item['입고수량'].sum()) if not my_item.empty else 0
-                best_list.append({"중분류": cat, "상권 1위 상품": top, "우리점포 입고": inbound, "상태": "🟢 취급중" if inbound > 0 else "🔴 미취급"})
-            st.table(pd.DataFrame(best_list))
+            st.info("시간대 트래픽 데이터가 없습니다.")
 
-    # -------------------------------------------------------
-    # TAB 3: 매출 흐름 요약
-    # -------------------------------------------------------
-    with tab3:
-        st.subheader("1. 당월 일별 FF 일매출 흐름")
-        df_daily_trend = df_s_curr.groupby('일자')['일매출'].sum().reset_index()
-        fig_trend = px.bar(df_daily_trend, x="일자", y="일매출", text_auto='.2s')
-        fig_trend.update_traces(marker_color='#0078D7', width=0.6)
-        st.plotly_chart(fig_trend, use_container_width=True)
+    st.divider()
 
-        st.divider()
+    # --- [섹션 3] 맞춤 발주 가이드 & 상권 베스트 ---
+    st.subheader("3. 💡 데이터 기반 요일별 맞춤 발주 (당월 0.7 + 전월 0.3)")
+    store_forecast = forecast[forecast['점포명'] == selected_store].drop(columns=['Key', '점포명'])
+    st.dataframe(store_forecast, use_container_width=True, hide_index=True)
 
-        st.subheader("2. 중분류별 판매율 (소진율)")
-        df_rate = df_s_curr.groupby('중분류')[['입고수량', '판매수량']].sum().reset_index()
-        df_rate['판매율'] = (df_rate['판매수량'] / df_rate['입고수량'] * 100).round(1)
-        fig_rate = px.bar(df_rate, x="중분류", y="판매율", text=df_rate['판매율'].apply(lambda x: f"{x}%"))
-        fig_rate.update_traces(marker_color='#4CAF50', width=0.4)
-        st.plotly_chart(fig_rate, use_container_width=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    col_bot1, col_bot2 = st.columns(2)
+    
+    with col_bot1:
+        st.subheader("4. 🏆 상권 베스트 상품 점검")
+        store_area = area_best[area_best['점포명'] == selected_store][['중분류', '상권1위상품', '우리점포일평균판매', '취급여부']]
+        st.dataframe(store_area, use_container_width=True, hide_index=True)
+
+    with col_bot2:
+        st.subheader("5. 🎯 중분류별 누적 판매율")
+        store_subcat = subcat[subcat['점포명'] == selected_store]
+        store_subcat['판매율(%)'] = (store_subcat['판매율'] * 100).round(1)
+        
+        fig_sub = px.bar(store_subcat, x='중분류', y='판매율(%)', text='판매율(%)')
+        fig_sub.update_traces(marker_color='#4CAF50', width=0.5, textposition='outside')
+        fig_sub.update_layout(template='plotly_white', yaxis_title="판매율 (%)", xaxis_title="", height=300)
+        st.plotly_chart(fig_sub, use_container_width=True)
