@@ -18,10 +18,14 @@ st.markdown("""
         font-family: 'Pretendard', sans-serif;
     }
 
+    /* ── Streamlit 기본 상단 여백 제거 ── */
+    #root > div:first-child { padding-top: 0 !important; }
+    header[data-testid="stHeader"] { display: none !important; }
+
     /* ── 모바일 최적화: 최대 너비 고정 & 패딩 축소 ── */
     .block-container {
         max-width: 100% !important;
-        padding: 0.8rem 0.8rem 2rem 0.8rem !important;
+        padding: 1.2rem 0.8rem 2rem 0.8rem !important;
     }
 
     /* ── 상단 헤더 카드 ── */
@@ -30,6 +34,7 @@ st.markdown("""
         border-radius: 16px;
         padding: 16px 18px 12px 18px;
         color: white;
+        margin-top: 4px;
         margin-bottom: 12px;
     }
     .header-card .store-name {
